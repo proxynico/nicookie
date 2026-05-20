@@ -10,6 +10,7 @@
 		"format:diff": "oxfmt --write . && git --no-pager diff",
 		"lint": "oxlint --type-aware --tsconfig tsconfig.lint.json --config .oxlintrc.json .",
 		"lint:fix": "oxlint --type-aware --tsconfig tsconfig.lint.json --config .oxlintrc.json --fix . && pnpm format",
+		"audit": "pnpm audit",
 		"test": "vitest run --coverage",
 		"test:bun": "bun test packages/core/tests-bun",
 		"test:watch": "vitest",
