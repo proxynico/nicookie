@@ -1,3 +1,10 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+
+onlyBuiltDependencies:
+  - esbuild
