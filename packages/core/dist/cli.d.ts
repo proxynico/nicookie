@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import type { BrowserName, Cookie, GetCookiesOptions } from "./types.js";
+import type { BrowserName, Cookie, GetCookiesOptions, ProfileType } from "./types.js";
 type OutputFormat = "json" | "header";
 type CliOptions = {
     url: string;
@@ -7,10 +7,10 @@ type CliOptions = {
     browsers?: BrowserName[];
     names?: string[];
     origins?: string[];
-    profile?: string;
-    chromeProfile?: string;
-    edgeProfile?: string;
-    firefoxProfile?: string;
+    profile?: ProfileType;
+    chromeProfile?: ProfileType;
+    edgeProfile?: ProfileType;
+    firefoxProfile?: ProfileType;
     safariCookiesFile?: string;
     chromiumBrowser?: NonNullable<GetCookiesOptions["chromiumBrowser"]>;
     mode?: NonNullable<GetCookiesOptions["mode"]>;

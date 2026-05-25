@@ -2,6 +2,7 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getCookies, toCookieHeader } from "./public.js";
+import { ALL_PROFILES } from "./types.js";
 const USAGE = `Usage: sweet-cookie <domain-or-url> [options]
 
 Options:
@@ -11,6 +12,7 @@ Options:
   --name <name>                 Cookie name allowlist. Repeat or comma-separate.
   --origin <url>                Extra origin to include. Repeat or comma-separate.
   --profile <value>             Shared Chromium profile selector.
+  --all-profiles                Read all Chrome, Edge, and Firefox profiles.
   --chrome-profile <value>      Chrome profile selector/path.
   --edge-profile <value>        Edge profile selector/path.
   --firefox-profile <value>     Firefox profile selector/path.
@@ -41,6 +43,7 @@ export function parseCliArgs(args) {
     let inlineCookiesFile;
     let inlineCookiesJson;
     let inlineCookiesBase64;
+    let allProfiles = false;
     const browserTokens = [];
     const names = [];
     const origins = [];
@@ -58,6 +61,10 @@ export function parseCliArgs(args) {
         }
         if (arg === "--debug") {
             debug = true;
+            continue;
+        }
+        if (arg === "--all-profiles") {
+            allProfiles = true;
             continue;
         }
         if (arg.startsWith("--")) {
@@ -139,9 +146,21 @@ export function parseCliArgs(args) {
     if (!target) {
         return { ok: false, exitCode: 1, message: USAGE, usage: true };
     }
+    if (allProfiles &&
+        (profile !== undefined ||
+            chromeProfile !== undefined ||
+            edgeProfile !== undefined ||
+            firefoxProfile !== undefined)) {
+        return fail("Cannot combine --all-profiles with explicit profile selectors");
+    }
     const browsers = normalizeBrowsers(browserTokens);
     if (browsers instanceof Error) {
         return fail(browsers.message);
+    }
+    if (allProfiles) {
+        chromeProfile = ALL_PROFILES;
+        edgeProfile = ALL_PROFILES;
+        firefoxProfile = ALL_PROFILES;
     }
     const options = {
         url: normalizeUrlInput(target),

@@ -44,6 +44,7 @@ npm i @steipete/sweet-cookie
 npx @steipete/sweet-cookie github.com
 npx @steipete/sweet-cookie github.com --browser chrome
 npx @steipete/sweet-cookie github.com --browser chrome --format header
+npx @steipete/sweet-cookie github.com --all-profiles --browser chrome,firefox
 ```
 
 The CLI accepts a domain or full URL, uses the same browser/profile/env behavior as `getCookies()`, and writes warnings to stderr.
@@ -192,6 +193,7 @@ If any inline source yields cookies, Sweet Cookie returns that result immediatel
 - default browser order: `chrome`, `safari`, `firefox`.
 - `mode`: `merge` (default) or `first`.
 - `profile`: shared alias for `chromeProfile` / `edgeProfile`; accepts a string, string array, or `ALL_PROFILES`. When omitted, Chromium backends keep their default profile behavior.
+- CLI-only: `--all-profiles` reads all discovered Chrome, Edge, and Firefox profiles. Safari has no profile selector.
 - `chromeProfile`: Chrome profile name/display name/path (profile dir or `Cookies` DB file); accepts a string, string array, or `ALL_PROFILES`.
 - `chromiumBrowser`: macOS-only explicit Chromium-family target for the `chrome` backend (`chrome|brave|arc|chromium`).
 - `edgeProfile`: Edge profile name/display name/path (profile dir or `Cookies` DB file); accepts a string, string array, or `ALL_PROFILES`.

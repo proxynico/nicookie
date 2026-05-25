@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatCookies, parseCliArgs, runCli } from "../src/cli.js";
+import { ALL_PROFILES } from "../src/index.js";
 
 describe("CLI", () => {
 	it("parses a bare domain and browser/header options", () => {
@@ -91,6 +92,39 @@ describe("CLI", () => {
 				inlineCookiesBase64: "eyJjb29raWVzIjpbXX0=",
 				debug: true,
 			},
+		});
+	});
+
+	it("parses all profiles for profile-aware browser backends", () => {
+		const parsed = parseCliArgs([
+			"example.com",
+			"--all-profiles",
+			"--browser",
+			"chrome,edge,firefox,safari",
+		]);
+
+		expect(parsed).toMatchObject({
+			ok: true,
+			options: {
+				url: "https://example.com/",
+				browsers: ["chrome", "edge", "firefox", "safari"],
+				chromeProfile: ALL_PROFILES,
+				edgeProfile: ALL_PROFILES,
+				firefoxProfile: ALL_PROFILES,
+			},
+		});
+	});
+
+	it("rejects all profiles with explicit profile selectors", () => {
+		expect(parseCliArgs(["example.com", "--all-profiles", "--profile", "Default"])).toMatchObject({
+			ok: false,
+			message: "Cannot combine --all-profiles with explicit profile selectors",
+		});
+		expect(
+			parseCliArgs(["example.com", "--all-profiles", "--firefox-profile", "default-release"]),
+		).toMatchObject({
+			ok: false,
+			message: "Cannot combine --all-profiles with explicit profile selectors",
 		});
 	});
 

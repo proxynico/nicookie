@@ -20,6 +20,7 @@ CLI:
 ```bash
 npx @steipete/sweet-cookie github.com
 npx @steipete/sweet-cookie github.com --browser chrome --format header
+npx @steipete/sweet-cookie github.com --all-profiles --browser chrome,firefox
 ```
 
 Usage:
@@ -60,6 +61,7 @@ await getCookies({
 Notes:
 
 - `profile` is a shared alias for `chromeProfile` / `edgeProfile`.
+- CLI `--all-profiles` reads all discovered Chrome, Edge, and Firefox profiles.
 - `chromiumBrowser` pins the macOS `chrome` backend to `chrome`, `brave`, `arc`, or `chromium`.
 - Inline payloads win first; otherwise local backends run in declared order.
 - On Linux/Windows, Brave and other Chromium-family profiles work via an explicit `chromeProfile` path.

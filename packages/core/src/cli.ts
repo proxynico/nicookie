@@ -3,7 +3,8 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { getCookies, toCookieHeader } from "./public.js";
-import type { BrowserName, Cookie, GetCookiesOptions } from "./types.js";
+import { ALL_PROFILES } from "./types.js";
+import type { BrowserName, Cookie, GetCookiesOptions, ProfileType } from "./types.js";
 
 type OutputFormat = "json" | "header";
 
@@ -13,10 +14,10 @@ type CliOptions = {
 	browsers?: BrowserName[];
 	names?: string[];
 	origins?: string[];
-	profile?: string;
-	chromeProfile?: string;
-	edgeProfile?: string;
-	firefoxProfile?: string;
+	profile?: ProfileType;
+	chromeProfile?: ProfileType;
+	edgeProfile?: ProfileType;
+	firefoxProfile?: ProfileType;
 	safariCookiesFile?: string;
 	chromiumBrowser?: NonNullable<GetCookiesOptions["chromiumBrowser"]>;
 	mode?: NonNullable<GetCookiesOptions["mode"]>;
@@ -41,6 +42,7 @@ Options:
   --name <name>                 Cookie name allowlist. Repeat or comma-separate.
   --origin <url>                Extra origin to include. Repeat or comma-separate.
   --profile <value>             Shared Chromium profile selector.
+  --all-profiles                Read all Chrome, Edge, and Firefox profiles.
   --chrome-profile <value>      Chrome profile selector/path.
   --edge-profile <value>        Edge profile selector/path.
   --firefox-profile <value>     Firefox profile selector/path.
@@ -64,14 +66,15 @@ export function parseCliArgs(args: string[]): ParseResult {
 	let includeExpired: boolean | undefined;
 	let timeoutMs: number | undefined;
 	let debug: boolean | undefined;
-	let profile: string | undefined;
-	let chromeProfile: string | undefined;
-	let edgeProfile: string | undefined;
-	let firefoxProfile: string | undefined;
+	let profile: ProfileType | undefined;
+	let chromeProfile: ProfileType | undefined;
+	let edgeProfile: ProfileType | undefined;
+	let firefoxProfile: ProfileType | undefined;
 	let safariCookiesFile: string | undefined;
 	let inlineCookiesFile: string | undefined;
 	let inlineCookiesJson: string | undefined;
 	let inlineCookiesBase64: string | undefined;
+	let allProfiles = false;
 	const browserTokens: string[] = [];
 	const names: string[] = [];
 	const origins: string[] = [];
@@ -90,6 +93,10 @@ export function parseCliArgs(args: string[]): ParseResult {
 		}
 		if (arg === "--debug") {
 			debug = true;
+			continue;
+		}
+		if (arg === "--all-profiles") {
+			allProfiles = true;
 			continue;
 		}
 		if (arg.startsWith("--")) {
@@ -160,9 +167,25 @@ export function parseCliArgs(args: string[]): ParseResult {
 		return { ok: false, exitCode: 1, message: USAGE, usage: true };
 	}
 
+	if (
+		allProfiles &&
+		(profile !== undefined ||
+			chromeProfile !== undefined ||
+			edgeProfile !== undefined ||
+			firefoxProfile !== undefined)
+	) {
+		return fail("Cannot combine --all-profiles with explicit profile selectors");
+	}
+
 	const browsers = normalizeBrowsers(browserTokens);
 	if (browsers instanceof Error) {
 		return fail(browsers.message);
+	}
+
+	if (allProfiles) {
+		chromeProfile = ALL_PROFILES;
+		edgeProfile = ALL_PROFILES;
+		firefoxProfile = ALL_PROFILES;
 	}
 
 	const options: CliOptions = {
