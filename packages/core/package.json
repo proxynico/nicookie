@@ -14,6 +14,7 @@
 		"directory": "packages/core"
 	},
 	"bin": {
+		"nicookie": "dist/cli.js",
 		"sweet-cookie": "dist/cli.js"
 	},
 	"files": [

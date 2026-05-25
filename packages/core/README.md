@@ -2,6 +2,9 @@
 
 Inline-first browser cookie extraction for local tooling (no native addons).
 
+This package also exposes a `nicookie` CLI alias for Nico's fork. The
+`sweet-cookie` bin remains available for compatibility.
+
 Supports:
 
 - Inline payloads (JSON / base64 / file) — most reliable path.
@@ -21,6 +24,7 @@ CLI:
 npx @steipete/sweet-cookie github.com
 npx @steipete/sweet-cookie github.com --browser chrome --format header
 npx @steipete/sweet-cookie github.com --all-profiles --browser chrome,firefox
+nicookie github.com --all-profiles --browser chrome,firefox
 ```
 
 Usage:

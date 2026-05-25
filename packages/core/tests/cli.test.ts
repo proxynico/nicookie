@@ -1,9 +1,24 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { formatCookies, parseCliArgs, runCli } from "../src/cli.js";
 import { ALL_PROFILES } from "../src/index.js";
 
 describe("CLI", () => {
+	it("publishes nicookie and sweet-cookie bin aliases", () => {
+		const packageJsonPath = path.join(import.meta.dirname, "..", "package.json");
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			bin?: Record<string, string>;
+		};
+
+		expect(packageJson.bin).toEqual({
+			nicookie: "dist/cli.js",
+			"sweet-cookie": "dist/cli.js",
+		});
+	});
+
 	it("parses a bare domain and browser/header options", () => {
 		const parsed = parseCliArgs([
 			"github.com",
@@ -212,7 +227,8 @@ describe("CLI", () => {
 			stderr: { write: () => undefined },
 		});
 		expect(helpCode).toBe(0);
-		expect(helpStdout.join("")).toContain("Usage: sweet-cookie");
+		expect(helpStdout.join("")).toContain("Usage: nicookie");
+		expect(helpStdout.join("")).toContain("Alias: sweet-cookie");
 
 		const errorStderr: string[] = [];
 		const errorCode = await runCli(["example.com", "--format", "yaml"], {

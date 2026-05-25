@@ -1,6 +1,10 @@
-# Sweet Cookie 🍪 — Inline-first browser cookie extraction
+# Nicookie — Inline-first browser cookie extraction
 
 Small, dependency-light cookie extraction for local tooling.
+
+Nicookie is Nico's fork of Sweet Cookie. The local/user-facing command is
+`nicookie`; the core package and `sweet-cookie` bin remain compatible with the
+upstream project.
 
 It’s built around two ideas:
 
@@ -15,7 +19,7 @@ Browser cookies are hard in practice:
 - Values may be encrypted (Keychain/DPAPI/keyring).
 - Native addons (`sqlite3`, `keytar`, …) are a constant source of rebuild/ABI pain across Node/Bun and CI.
 
-Sweet Cookie avoids native Node addons by design:
+Nicookie avoids native Node addons by design:
 
 - SQLite: `node:sqlite` (Node) or `bun:sqlite` (Bun)
 - OS integration: shelling out to platform tools with timeouts (`security`, `powershell`, `secret-tool`, `kwallet-query`)
@@ -45,6 +49,7 @@ npx @steipete/sweet-cookie github.com
 npx @steipete/sweet-cookie github.com --browser chrome
 npx @steipete/sweet-cookie github.com --browser chrome --format header
 npx @steipete/sweet-cookie github.com --all-profiles --browser chrome,firefox
+nicookie github.com --all-profiles --browser chrome,firefox
 ```
 
 The CLI accepts a domain or full URL, uses the same browser/profile/env behavior as `getCookies()`, and writes warnings to stderr.

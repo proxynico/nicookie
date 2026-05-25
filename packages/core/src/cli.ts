@@ -33,7 +33,8 @@ type ParseResult =
 	| { ok: true; options: CliOptions }
 	| { ok: false; exitCode: number; message: string; usage?: boolean };
 
-const USAGE = `Usage: sweet-cookie <domain-or-url> [options]
+const USAGE = `Usage: nicookie <domain-or-url> [options]
+Alias: sweet-cookie
 
 Options:
   --browser <name>              Browser source: chrome, edge, firefox, safari. Repeat or comma-separate.

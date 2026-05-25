@@ -3,7 +3,8 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getCookies, toCookieHeader } from "./public.js";
 import { ALL_PROFILES } from "./types.js";
-const USAGE = `Usage: sweet-cookie <domain-or-url> [options]
+const USAGE = `Usage: nicookie <domain-or-url> [options]
+Alias: sweet-cookie
 
 Options:
   --browser <name>              Browser source: chrome, edge, firefox, safari. Repeat or comma-separate.
