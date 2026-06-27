@@ -53,9 +53,20 @@ const CHROMIUM_BROWSER_TARGETS = [
 			label: "Chromium Safe Storage",
 		},
 	},
+	{
+		// Helium (net.imput.helium) is a Chromium build that keeps the stock
+		// "Chromium Safe Storage" Keychain service, so reuse the chromium key.
+		id: "helium" as const,
+		root: "net.imput.helium",
+		keychain: {
+			account: "Chromium",
+			services: ["Chromium Safe Storage"],
+			label: "Chromium Safe Storage",
+		},
+	},
 ];
 
-export type ChromiumBrowserId = "chrome" | "brave" | "arc" | "chromium";
+export type ChromiumBrowserId = "chrome" | "brave" | "arc" | "chromium" | "helium";
 
 export async function getCookiesFromChromeSqliteMac(
 	options: {
