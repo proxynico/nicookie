@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Update the repository toolchain to pnpm 11.12 and Node 22.13 or newer for current install hardening.
+
 ### Fixed
 
 - Avoid crashes and fail closed for opaque target URLs such as `file://`, preventing unrelated cookies from being returned. (`#32`, thanks `@devYRPauli`)
