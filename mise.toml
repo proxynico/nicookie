@@ -1,0 +1,4 @@
+# Toolchain pins for this repo. Managed with mise (https://mise.jdx.dev).
+# pnpm/npm are not pinned here: pnpm self-switches from packageManager.
+[tools]
+node = "24"
