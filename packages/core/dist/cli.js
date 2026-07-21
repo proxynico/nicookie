@@ -107,7 +107,11 @@ export function parseCliArgs(args) {
                 safariCookiesFile = value;
             }
             else if (name === "--chromium-browser") {
-                if (value !== "chrome" && value !== "brave" && value !== "arc" && value !== "chromium" && value !== "helium") {
+                if (value !== "chrome" &&
+                    value !== "brave" &&
+                    value !== "arc" &&
+                    value !== "chromium" &&
+                    value !== "helium") {
                     return fail(`Invalid --chromium-browser: ${value}`);
                 }
                 chromiumBrowser = value;

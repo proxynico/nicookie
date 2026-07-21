@@ -27,6 +27,9 @@ export async function getCookies(options) {
     const warnings = [];
     const url = options.url;
     const origins = normalizeOrigins(url, options.origins);
+    if (origins.length === 0) {
+        return { cookies: [], warnings };
+    }
     const names = normalizeNames(options.names);
     let browsers;
     if (Array.isArray(options.browsers) && options.browsers.length > 0) {
@@ -50,7 +53,6 @@ export async function getCookies(options) {
     const mergedPrimaryKeys = new Set();
     for (const browser of browsers) {
         let result;
-        let includeProfileInMergeKey = false;
         if (browser === "chrome") {
             const chromeOptions = {};
             const chromeProfile = options.chromeProfile ?? options.profile ?? readEnv("SWEET_COOKIE_CHROME_PROFILE");
@@ -73,7 +75,6 @@ export async function getCookies(options) {
                 }
                 return getCookiesFromChrome(profileOptions, origins, names);
             }, chromeProfile);
-            includeProfileInMergeKey = isMultiProfileSelector(chromeProfile);
         }
         else if (browser === "edge") {
             const edgeOptions = {};
@@ -97,7 +98,6 @@ export async function getCookies(options) {
                 }
                 return getCookiesFromEdge(profileOptions, origins, names);
             }, edgeProfile);
-            includeProfileInMergeKey = isMultiProfileSelector(edgeProfile);
         }
         else if (browser === "firefox") {
             const firefoxOptions = {};
@@ -112,7 +112,6 @@ export async function getCookies(options) {
                 }
                 return getCookiesFromFirefox(profileOptions, origins, names);
             }, firefoxProfile);
-            includeProfileInMergeKey = isMultiProfileSelector(firefoxProfile);
         }
         else {
             const safariOptions = {};
@@ -146,7 +145,7 @@ export async function getCookies(options) {
         const primaryKeysFromBrowser = new Set();
         for (const cookie of result.cookies) {
             const primaryKey = mergeCookieKey(cookie, {
-                includeProfileInKey: includeProfileInMergeKey,
+                includeProfileInKey: false,
                 includeStoreInKey: false,
             });
             primaryKeysFromBrowser.add(primaryKey);
@@ -154,7 +153,7 @@ export async function getCookies(options) {
                 continue;
             }
             const storageKey = mergeCookieKey(cookie, {
-                includeProfileInKey: includeProfileInMergeKey,
+                includeProfileInKey: true,
                 includeStoreInKey: true,
             });
             if (!merged.has(storageKey)) {
@@ -206,12 +205,6 @@ function normalizeProfileSelectors(profile) {
     }
     const cleaned = profile.trim();
     return cleaned ? [cleaned] : [undefined];
-}
-function isMultiProfileSelector(profile) {
-    if (profile === ALL_PROFILES) {
-        return true;
-    }
-    return Array.isArray(profile) && normalizeProfileSelectors(profile).length > 1;
 }
 function normalizePathSelectors(pathValue) {
     if (pathValue === undefined) {
