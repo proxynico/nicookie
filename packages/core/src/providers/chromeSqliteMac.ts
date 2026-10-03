@@ -64,9 +64,18 @@ const CHROMIUM_BROWSER_TARGETS = [
 			label: "Chromium Safe Storage",
 		},
 	},
+	{
+		id: "dia" as const,
+		root: "Dia/User Data",
+		keychain: {
+			account: "Dia",
+			services: ["Dia Safe Storage"],
+			label: "Dia Safe Storage",
+		},
+	},
 ];
 
-export type ChromiumBrowserId = "chrome" | "brave" | "arc" | "chromium" | "helium";
+export type ChromiumBrowserId = "chrome" | "brave" | "arc" | "chromium" | "dia" | "helium";
 
 export async function getCookiesFromChromeSqliteMac(
 	options: {
@@ -79,17 +88,23 @@ export async function getCookiesFromChromeSqliteMac(
 	origins: string[],
 	allowlistNames: Set<string> | null,
 ): Promise<GetCookiesResult> {
-	const dbs = resolveChromeCookiesDbs(options.profile, options.chromiumBrowser);
+	const pathWarnings = new Set<string>();
+	const dbs = resolveChromeCookiesDbs(options.profile, options.chromiumBrowser, pathWarnings);
 	if (!dbs.length) {
-		return { cookies: [], warnings: ["Chrome cookies database not found."] };
+		return {
+			cookies: [],
+			warnings: pathWarnings.size
+				? Array.from(pathWarnings)
+				: ["Chrome cookies database not found."],
+		};
 	}
 
-	const warnings: string[] = [];
+	const warnings = Array.from(pathWarnings);
 	const cookies: Cookie[] = [];
 	for (const db of dbs) {
 		// On macOS, Chromium stores its "Safe Storage" secret in Keychain.
 		// `security find-generic-password` is stable and avoids any native Node keychain modules.
-		const keychain = resolveKeychainForDb(db.dbPath);
+		const keychain = resolveKeychainForDb(db.dbPath, options.chromiumBrowser);
 		const passwordResult = await readKeychainGenericPasswordFirst({
 			account: keychain.account,
 			services: keychain.services,
@@ -147,11 +162,20 @@ export async function getCookiesFromChromeSqliteMac(
 	return { cookies, warnings };
 }
 
-function resolveKeychainForDb(dbPath: string): {
+export function resolveKeychainForDb(
+	dbPath: string,
+	chromiumBrowser?: ChromiumBrowserId,
+): {
 	account: string;
 	services: string[];
 	label: string;
 } {
+	if (chromiumBrowser !== undefined) {
+		const selected = CHROMIUM_BROWSER_TARGETS.find((target) => target.id === chromiumBrowser);
+		if (selected !== undefined) {
+			return selected.keychain;
+		}
+	}
 	const lower = dbPath.toLowerCase();
 	for (const target of CHROMIUM_BROWSER_TARGETS) {
 		if (lower.includes(target.root.toLowerCase())) {
@@ -164,6 +188,7 @@ function resolveKeychainForDb(dbPath: string): {
 function resolveChromeCookiesDbs(
 	profile?: ChromiumProfileSelector,
 	chromiumBrowser?: ChromiumBrowserId,
+	warnings?: Set<string>,
 ): ResolvedCookiesDb[] {
 	const home = homedir();
 	const selectedTargets = chromiumBrowser
@@ -177,6 +202,7 @@ function resolveChromeCookiesDbs(
 				)
 			: [];
 	const args: Parameters<typeof resolveCookiesDbsFromProfileOrRoots>[0] = { roots };
+	args.onWarning = (warning) => warnings?.add(warning);
 	if (profile !== undefined) {
 		args.profile = profile;
 	}

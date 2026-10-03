@@ -20,6 +20,8 @@ export interface Cookie {
 	value: string;
 	/** Hostname without leading dot (e.g. `example.com`). */
 	domain?: string;
+	/** True when the browser stored this cookie for exactly one host. */
+	hostOnly?: boolean;
 	/** Path (defaults to `/` when omitted). */
 	path?: string;
 	/**
@@ -102,12 +104,14 @@ export interface GetCookiesOptions {
 	/** Override path to Safari Cookies.binarycookies (for tests / debugging). */
 	safariCookiesFile?: PathType;
 	/**
-	 * Specific Chromium browser to target on macOS.
+	 * Specific Chromium browser to target on macOS or Linux.
 	 * When set, only that browser's keychain entry/root will be tried (avoids multiple password prompts).
 	 * When omitted, the macOS `chrome` backend checks Chrome and Brave roots by default.
+	 * On Linux, the backend checks Google Chrome roots by default; select Chromium or Brave
+	 * explicitly to search their native and container roots. Arc, Dia, and Helium are macOS-only.
 	 * Only used when `browsers` includes 'chrome'.
 	 */
-	chromiumBrowser?: "chrome" | "brave" | "arc" | "chromium" | "helium";
+	chromiumBrowser?: "chrome" | "brave" | "arc" | "chromium" | "dia" | "helium";
 	/** Include expired cookies (default: false). */
 	includeExpired?: boolean;
 	/** Timeout for OS helper calls (keychain/keyring/DPAPI). */

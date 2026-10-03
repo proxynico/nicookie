@@ -143,6 +143,14 @@ describe("CLI", () => {
 		});
 	});
 
+	it.each(["dia", "helium"])("parses %s as a valid --chromium-browser", (browser) => {
+		const parsed = parseCliArgs(["example.com", "--chromium-browser", browser]);
+		expect(parsed).toMatchObject({
+			ok: true,
+			options: { chromiumBrowser: browser },
+		});
+	});
+
 	it("rejects invalid browsers", () => {
 		const parsed = parseCliArgs(["github.com", "--browser", "opera"]);
 		expect(parsed).toMatchObject({

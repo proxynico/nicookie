@@ -2,22 +2,30 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ALL_PROFILES } from "../src/index.js";
 import { getCookiesFromFirefox } from "../src/providers/firefoxSqlite.js";
 
 type SqliteRow = Record<string, unknown>;
-type NodeSqliteState = { rows: SqliteRow[]; shouldThrow: boolean; openCount: number };
+type NodeSqliteState = {
+	rows: SqliteRow[];
+	columns: string[];
+	shouldThrow: boolean;
+	openCount: number;
+	lastSql: string;
+};
 
 function stubFirefoxProfilesRoot(homeDir: string): string {
 	if (process.platform === "darwin") {
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		return path.join(homeDir, "Library", "Application Support", "Firefox", "Profiles");
 	}
 
 	if (process.platform === "linux") {
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		return path.join(homeDir, ".mozilla", "firefox");
 	}
 
@@ -32,8 +40,10 @@ function stubFirefoxProfilesRoot(homeDir: string): string {
 
 const nodeSqlite = vi.hoisted<NodeSqliteState>(() => ({
 	rows: [],
+	columns: ["originAttributes", "isPartitionedAttributeSet"],
 	shouldThrow: false,
 	openCount: 0,
+	lastSql: "",
 }));
 
 vi.mock("node:sqlite", () => {
@@ -45,8 +55,14 @@ vi.mock("node:sqlite", () => {
 			}
 		}
 
-		prepare() {
-			return { all: () => nodeSqlite.rows };
+		prepare(sql: string) {
+			nodeSqlite.lastSql = sql;
+			return {
+				all: () =>
+					sql === "PRAGMA table_info(moz_cookies);"
+						? nodeSqlite.columns.map((name) => ({ name }))
+						: nodeSqlite.rows,
+			};
 		}
 
 		close() {}
@@ -58,8 +74,126 @@ vi.mock("node:sqlite", () => {
 describe("firefox sqlite provider", () => {
 	beforeEach(() => {
 		nodeSqlite.rows = [];
+		nodeSqlite.columns = ["originAttributes", "isPartitionedAttributeSet"];
 		nodeSqlite.shouldThrow = false;
 		nodeSqlite.openCount = 0;
+		nodeSqlite.lastSql = "";
+	});
+
+	it("preserves host scope and excludes partitioned or container-scoped cookies", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-firefox-"));
+		const dbDir = path.join(dir, "profile");
+
+		mkdirSync(dbDir, { recursive: true });
+		writeFileSync(path.join(dbDir, "cookies.sqlite"), "", "utf8");
+		nodeSqlite.rows = [
+			{
+				name: "sid",
+				value: "host-value",
+				host: "chatgpt.com",
+				path: "/",
+				expiry: 9999999999,
+				isSecure: 1,
+				isHttpOnly: 1,
+				sameSite: 2,
+				originAttributes: "",
+				isPartitionedAttributeSet: 0,
+			},
+			{
+				name: "sid",
+				value: "domain-value",
+				host: ".chatgpt.com",
+				path: "/",
+				expiry: 9999999999,
+				isSecure: 1,
+				isHttpOnly: 1,
+				sameSite: 2,
+				originAttributes: "",
+				isPartitionedAttributeSet: 0,
+			},
+			{
+				name: "container",
+				value: "container-value",
+				host: ".chatgpt.com",
+				path: "/",
+				expiry: 9999999999,
+				isSecure: 1,
+				isHttpOnly: 1,
+				sameSite: 2,
+				originAttributes: "^userContextId=2",
+				isPartitionedAttributeSet: 0,
+			},
+			{
+				name: "partitioned",
+				value: "partitioned-value",
+				host: ".chatgpt.com",
+				path: "/",
+				expiry: 9999999999,
+				isSecure: 1,
+				isHttpOnly: 1,
+				sameSite: 2,
+				originAttributes: "",
+				isPartitionedAttributeSet: 1,
+			},
+		];
+
+		const res = await getCookiesFromFirefox(
+			{ profile: dbDir, includeExpired: true },
+			["https://chatgpt.com/"],
+			null,
+		);
+
+		expect(nodeSqlite.lastSql).toContain("originAttributes, isPartitionedAttributeSet");
+		expect(res.cookies.map(({ value, hostOnly }) => ({ value, hostOnly }))).toEqual([
+			{ value: "host-value", hostOnly: true },
+			{ value: "domain-value", hostOnly: false },
+		]);
+		expect(res.warnings).toEqual([
+			"2 partitioned or container-scoped Firefox cookie(s) were excluded because replay cannot preserve their origin attributes.",
+		]);
+
+		const subdomainRes = await getCookiesFromFirefox(
+			{ profile: dbDir, includeExpired: true },
+			["https://sub.chatgpt.com/"],
+			null,
+		);
+		expect(subdomainRes.cookies.map(({ value, hostOnly }) => ({ value, hostOnly }))).toEqual([
+			{ value: "domain-value", hostOnly: false },
+		]);
+	});
+
+	it("reads ordinary cookies when isolation-provenance columns are absent", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-firefox-"));
+		const dbDir = path.join(dir, "profile");
+
+		mkdirSync(dbDir, { recursive: true });
+		writeFileSync(path.join(dbDir, "cookies.sqlite"), "", "utf8");
+		nodeSqlite.columns = ["name", "value", "host", "path"];
+		nodeSqlite.rows = [
+			{
+				name: "sid",
+				value: "value",
+				host: "example.com",
+				path: "/",
+				expiry: 9999999999,
+				isSecure: 1,
+				isHttpOnly: 1,
+				sameSite: 2,
+			},
+		];
+
+		const res = await getCookiesFromFirefox(
+			{ profile: dbDir, includeExpired: true },
+			["https://example.com/"],
+			null,
+		);
+
+		expect(nodeSqlite.lastSql).toContain("'' AS originAttributes");
+		expect(nodeSqlite.lastSql).toContain("0 AS isPartitionedAttributeSet");
+		expect(res.cookies).toEqual([
+			expect.objectContaining({ name: "sid", value: "value", hostOnly: true }),
+		]);
+		expect(res.warnings).toEqual([]);
 	});
 
 	it("reads cookies via node:sqlite", async () => {
@@ -344,7 +478,7 @@ describe("firefox sqlite provider", () => {
 	});
 });
 
-const describeIfLinux = process.platform === "linux" ? describe : describe.skip;
+const actualPlatform = process.platform;
 const sampleRow: SqliteRow = {
 	name: "sid",
 	value: "value",
@@ -356,11 +490,111 @@ const sampleRow: SqliteRow = {
 	sameSite: 2,
 };
 
-describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", () => {
+const containerProfileRoots = [
+	{
+		layout: "Snap",
+		root: (home: string) => path.join(home, "snap", "firefox", "common", ".mozilla", "firefox"),
+	},
+	{
+		layout: "Flatpak legacy",
+		root: (home: string) =>
+			path.join(home, ".var", "app", "org.mozilla.firefox", ".mozilla", "firefox"),
+	},
+	{
+		layout: "Flatpak XDG",
+		root: (home: string) =>
+			path.join(home, ".var", "app", "org.mozilla.firefox", "config", "mozilla", "firefox"),
+	},
+];
+
+describe("firefox sqlite provider (Linux profile roots, issue #26)", () => {
 	beforeEach(() => {
+		Object.defineProperty(process, "platform", { value: "linux" });
 		nodeSqlite.rows = [sampleRow];
+		nodeSqlite.columns = ["originAttributes", "isPartitionedAttributeSet"];
 		nodeSqlite.shouldThrow = false;
 		nodeSqlite.openCount = 0;
+	});
+
+	afterEach(() => {
+		Object.defineProperty(process, "platform", { value: actualPlatform });
+		vi.unstubAllEnvs();
+	});
+
+	it.each(containerProfileRoots)(
+		"resolves a default profile from the $layout root",
+		async ({ root }) => {
+			const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-firefox-container-"));
+			const homeDir = path.join(dir, "home");
+			const profileDir = path.join(root(homeDir), "abc.default-release");
+			mkdirSync(profileDir, { recursive: true });
+			writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
+			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("USERPROFILE", homeDir);
+			vi.stubEnv("XDG_CONFIG_HOME", path.join(dir, "xdg-config"));
+
+			const res = await getCookiesFromFirefox(
+				{ includeExpired: true },
+				["https://chatgpt.com/"],
+				null,
+			);
+
+			expect(res.cookies[0]?.source?.profile).toBe("abc.default-release");
+		},
+	);
+
+	it("skips non-profile directories before selecting a Snap default", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-firefox-container-"));
+		const homeDir = path.join(dir, "home");
+		const snapRoot = path.join(homeDir, "snap", "firefox", "common", ".mozilla", "firefox");
+		const profileName = "rvwkamqb.default";
+		const profileDir = path.join(snapRoot, profileName);
+		mkdirSync(path.join(snapRoot, "Crash Reports"), { recursive: true });
+		mkdirSync(profileDir, { recursive: true });
+		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
+		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
+		vi.stubEnv("XDG_CONFIG_HOME", path.join(dir, "xdg-config"));
+
+		const res = await getCookiesFromFirefox(
+			{ includeExpired: true },
+			["https://chatgpt.com/"],
+			null,
+		);
+
+		expect(res.cookies).toHaveLength(1);
+		expect(res.cookies[0]?.source?.profile).toBe(profileName);
+		expect(res.warnings).toEqual([]);
+	});
+
+	it("reads profiles across every native and container root with ALL_PROFILES", async () => {
+		const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-firefox-all-linux-"));
+		const homeDir = path.join(dir, "home");
+		const xdgConfigHome = path.join(dir, "xdg-config");
+		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
+		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
+
+		const roots = [
+			path.join(xdgConfigHome, "mozilla", "firefox"),
+			path.join(homeDir, ".mozilla", "firefox"),
+			...containerProfileRoots.map(({ root }) => root(homeDir)),
+		];
+		const profiles = roots.map((root, index) => {
+			const profile = `profile-${index}.default-release`;
+			const profileDir = path.join(root, profile);
+			mkdirSync(profileDir, { recursive: true });
+			writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
+			return profile;
+		});
+
+		const res = await getCookiesFromFirefox(
+			{ profile: ALL_PROFILES, includeExpired: true },
+			["https://chatgpt.com/"],
+			null,
+		);
+
+		expect(res.cookies.map((cookie) => cookie.source?.profile)).toEqual(profiles);
 	});
 
 	it("resolves profiles at $XDG_CONFIG_HOME/mozilla/firefox when set", async () => {
@@ -371,6 +605,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		mkdirSync(profileDir, { recursive: true });
 		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
 
 		const res = await getCookiesFromFirefox(
@@ -390,6 +625,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		mkdirSync(profileDir, { recursive: true });
 		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", undefined);
 
 		const res = await getCookiesFromFirefox(
@@ -409,6 +645,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		mkdirSync(profileDir, { recursive: true });
 		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", "");
 
 		const res = await getCookiesFromFirefox(
@@ -429,6 +666,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		mkdirSync(profileDir, { recursive: true });
 		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", "relative/path");
 
 		const res = await getCookiesFromFirefox(
@@ -451,6 +689,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		// XDG root is a real directory but contains no Firefox subtree.
 		mkdirSync(xdgConfigHome, { recursive: true });
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
 
 		const res = await getCookiesFromFirefox(
@@ -473,6 +712,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		writeFileSync(path.join(xdgProfileDir, "cookies.sqlite"), "", "utf8");
 		writeFileSync(path.join(legacyProfileDir, "cookies.sqlite"), "", "utf8");
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
 
 		const res = await getCookiesFromFirefox(
@@ -483,7 +723,8 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 
 		expect(res.cookies).toHaveLength(1);
 		expect(res.cookies[0]?.source?.profile).toBe("abc.default-release");
-		expect(nodeSqlite.openCount).toBe(1);
+		// One selected profile is inspected for capabilities and then queried.
+		expect(nodeSqlite.openCount).toBe(2);
 	});
 
 	it("resolves a named profile at the XDG root", async () => {
@@ -495,6 +736,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		mkdirSync(profileDir, { recursive: true });
 		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
 
 		const res = await getCookiesFromFirefox(
@@ -516,6 +758,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		writeFileSync(path.join(profileDir, "cookies.sqlite"), "", "utf8");
 		mkdirSync(xdgConfigHome, { recursive: true });
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
 
 		const res = await getCookiesFromFirefox(
@@ -534,6 +777,7 @@ describeIfLinux("firefox sqlite provider (Linux XDG profile roots, issue #26)", 
 		mkdirSync(homeDir, { recursive: true });
 		mkdirSync(xdgConfigHome, { recursive: true });
 		vi.stubEnv("HOME", homeDir);
+		vi.stubEnv("USERPROFILE", homeDir);
 		vi.stubEnv("XDG_CONFIG_HOME", xdgConfigHome);
 
 		const res = await getCookiesFromFirefox(

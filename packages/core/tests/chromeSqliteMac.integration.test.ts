@@ -33,6 +33,7 @@ function encryptChromeCookieValueMac(options: {
 async function createChromiumCookiesDb(options: {
 	dbPath: string;
 	metaVersion: number;
+	partitionColumns?: boolean;
 	rows: Array<{
 		host_key: string;
 		name: string;
@@ -44,8 +45,12 @@ async function createChromiumCookiesDb(options: {
 	const db = new DatabaseSync(options.dbPath);
 	try {
 		db.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER);");
+		const partitionColumns =
+			options.partitionColumns === false
+				? ""
+				: ", top_frame_site_key TEXT, has_cross_site_ancestor INTEGER";
 		db.exec(
-			"CREATE TABLE cookies (host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB, path TEXT, expires_utc INTEGER, is_secure INTEGER, is_httponly INTEGER, samesite INTEGER);",
+			`CREATE TABLE cookies (host_key TEXT, name TEXT, value TEXT, encrypted_value BLOB, path TEXT, expires_utc INTEGER, is_secure INTEGER, is_httponly INTEGER, samesite INTEGER${partitionColumns});`,
 		);
 		db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)").run("version", options.metaVersion);
 
@@ -63,12 +68,15 @@ async function createChromiumCookiesDb(options: {
 function writeShim(
 	binDir: string,
 	name: string,
-	options: { stdout: string; exitCode?: number },
+	options: { stdout: string; exitCode?: number; requiredArgs?: string[] },
 ): void {
 	mkdirSync(binDir, { recursive: true });
 	const shim = path.join(binDir, name);
 	const script = [
 		"#!/usr/bin/env node",
+		`const requiredArgs = ${JSON.stringify(options.requiredArgs ?? [])};`,
+		"const missingArgs = requiredArgs.filter((arg) => !process.argv.slice(2).includes(arg));",
+		'if (missingArgs.length) { process.stderr.write(`missing args: ${missingArgs.join(",")}\\n`); process.exit(2); }',
 		`process.stdout.write(${JSON.stringify(options.stdout)});`,
 		`process.exit(${options.exitCode ?? 0});`,
 	].join("\n");
@@ -116,4 +124,97 @@ describeIfDarwin("chrome sqlite (mac) integration", () => {
 		expect(res.cookies).toHaveLength(1);
 		expect(res.cookies[0]?.value).toBe("cookie-value");
 	});
+
+	it("reads a real sqlite schema without partition-provenance columns", async () => {
+		vi.resetModules();
+
+		const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-mac-legacy-it-"));
+		const binDir = path.join(dir, "bin");
+		const dbPath = path.join(dir, "Cookies");
+
+		writeShim(binDir, "security", { stdout: "synthetic-password\n", exitCode: 0 });
+		vi.stubEnv("PATH", [binDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter));
+
+		await createChromiumCookiesDb({
+			dbPath,
+			metaVersion: 24,
+			partitionColumns: false,
+			rows: [
+				{
+					host_key: "example.com",
+					name: "sid",
+					value: "cookie-value",
+					encrypted_value: new Uint8Array(),
+				},
+			],
+		});
+
+		const { getCookiesFromChromeSqliteMac } = await import("../src/providers/chromeSqliteMac.js");
+		const res = await getCookiesFromChromeSqliteMac(
+			{ profile: dbPath, includeExpired: true },
+			["https://example.com/"],
+			null,
+		);
+
+		expect(res.warnings).toEqual([]);
+		expect(res.cookies).toEqual([
+			expect.objectContaining({ name: "sid", value: "cookie-value", hostOnly: true }),
+		]);
+	});
+
+	it.each([
+		{ browser: "chromium", account: "Chromium", service: "Chromium Safe Storage" },
+		{ browser: "dia", account: "Dia", service: "Dia Safe Storage" },
+		{ browser: "helium", account: "Chromium", service: "Chromium Safe Storage" },
+	] as const)(
+		"decrypts a generic custom profile with its explicit $browser Keychain target",
+		async ({ browser, account, service }) => {
+			vi.resetModules();
+
+			const dir = mkdtempSync(path.join(tmpdir(), "sweet-cookie-keychain-it-"));
+			const binDir = path.join(dir, "bin");
+			const dbPath = path.join(dir, "custom-profile", "Network", "Cookies");
+			mkdirSync(path.dirname(dbPath), { recursive: true });
+
+			const password = `pw-${randomBytes(8).toString("hex")}`;
+			writeShim(binDir, "security", {
+				stdout: `${password}\n`,
+				requiredArgs: [account, service],
+			});
+			vi.stubEnv("PATH", [binDir, process.env.PATH ?? ""].filter(Boolean).join(path.delimiter));
+
+			await createChromiumCookiesDb({
+				dbPath,
+				metaVersion: 24,
+				rows: [
+					{
+						host_key: "example.com",
+						name: "sid",
+						value: "",
+						encrypted_value: encryptChromeCookieValueMac({
+							password,
+							stripHashPrefix: true,
+							value: "cookie-value",
+						}),
+					},
+				],
+			});
+
+			const { getCookiesFromChromeSqliteMac } = await import("../src/providers/chromeSqliteMac.js");
+			const res = await getCookiesFromChromeSqliteMac(
+				{
+					profile: dbPath,
+					chromiumBrowser: browser,
+					includeExpired: true,
+				},
+				["https://example.com/"],
+				null,
+			);
+
+			expect(res.warnings).toEqual([]);
+			expect(res.cookies).toEqual([
+				expect.objectContaining({ name: "sid", value: "cookie-value" }),
+			]);
+		},
+	);
 });

@@ -1,13 +1,54 @@
 # Changelog
 
-## Unreleased
+## 0.4.5 - Unreleased
 
-### Changed
+## 0.4.4 - 2026-09-24
 
-- Update the repository toolchain to pnpm 11.14 and Node 22.13 or newer for current install hardening.
+**Highlights:** Reliable Chromium cookie reads on early Node 22 and 24 releases without changing runtime requirements.
 
 ### Fixed
 
+- Restore Chromium cookie reads on Node 22 before 22.18 and Node 24 before 24.4 by using the overflow-safe expiry query when the SQLite constructor ignores `readBigInts`. (`#52`, thanks `@Sogl`)
+
+## 0.4.3 - 2026-09-05
+
+**Highlights:** Correct cookie scope and isolation, Dia support on macOS, and improved Linux profile discovery and macOS Keychain selection.
+
+### Fixed
+
+- Preserve host-only cookie scope and exclude partitioned or container-scoped cookies, including opaque CDP partitions, whose isolation cannot be replayed. (`#42`, thanks `@0thernet`)
+- Discover Linux Chrome, Chromium, Brave, and Firefox profiles across native, Snap, and Flatpak roots, with Chromium-specific keyring identifiers for `v11` cookies. (`#47`, thanks `@LuisUrrutia`)
+- Use the explicitly selected macOS Chromium browser's Keychain entry when a custom profile path does not identify its browser. (`#43`, thanks `@0thernet`)
+
+### Added
+
+- Support the Dia browser on macOS through the `chrome` backend via `chromiumBrowser: "dia"` and `--chromium-browser dia`. (`#40`, thanks `@yoyooyooo`)
+
+### Changed
+
+- Refresh pnpm, Vitest, CI setup, Oxfmt, Oxlint, Node/Chrome development types, and transitive source-map tooling while preserving the supported Node runtime floors.
+
+## 0.4.2 - 2026-08-28
+
+### Fixed
+
+- Fix the Chrome extension setup guide: build first, then load `apps/extension/dist` in Chrome without moving source files. (`#45`, fixes `#41`, thanks `@YOSI-COHEN`)
+
+### Changed
+
+- Clarify installation, CLI usage, browser support, and profile selection in the README and full usage guide. (`#39`)
+- Refresh development dependencies and CI tooling, including pnpm, TypeScript, and the test, lint, and build tools. (`#44`)
+
+## 0.4.1 - 2026-08-01
+
+### Changed
+
+- Update the pnpm, Vite, Oxfmt, Oxlint, and type-aware linting toolchain to their latest stable releases.
+- Update the repository toolchain to pnpm 11.12 and Node 22.13 or newer for current install hardening.
+
+### Fixed
+
+- Preserve macOS Chromium permission-denied warnings during all-profile discovery so inaccessible profiles are distinguishable from missing databases. (`#37`, thanks `@bunizao`)
 - Avoid crashes and fail closed for opaque target URLs such as `file://`, preventing unrelated cookies from being returned. (`#32`, thanks `@devYRPauli`)
 
 ## 0.4.0 - 2026-06-11
