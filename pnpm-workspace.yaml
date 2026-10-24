@@ -2,6 +2,8 @@ packages:
   - "packages/*"
   - "apps/*"
 
+# Wait seven days before installing a newly published package version: nicookie reads browser cookies.
+# Settled 24 October 2026 by Nico. Rejected: removing the wait, risking a hijacked release for updates a few days sooner.
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
