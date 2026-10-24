@@ -17,11 +17,11 @@
 		"typecheck": "pnpm -r typecheck"
 	},
 	"devDependencies": {
-		"@types/node": "^26.6.2",
+		"@types/node": "^26.6.5",
 		"@vitest/coverage-v8": "^5.0.5",
-		"oxfmt": "^0.70.0",
-		"oxlint": "^1.85.0",
-		"oxlint-tsgolint": "^7.0.2002",
+		"oxfmt": "^0.73.0",
+		"oxlint": "^1.88.0",
+		"oxlint-tsgolint": "^7.0.2004",
 		"typescript": "^7.0.2",
 		"vite": "^8.3.4",
 		"vitest": "^5.0.5"
