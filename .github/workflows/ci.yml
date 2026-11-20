@@ -43,6 +43,7 @@ jobs:
         with:
           node-version: 22.13.0
 
+      - run: bun run check:release-age
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun audit --audit-level=high
