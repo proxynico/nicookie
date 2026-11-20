@@ -5,28 +5,54 @@
 // that is too new or has no publish time, as pnpm's strict release-age policy did.
 import { readFileSync } from "node:fs";
 
-const root = new URL("..", import.meta.url);
-const bunfig = readFileSync(new URL("bunfig.toml", root), "utf8");
-const ageMatch = bunfig.match(/^\s*minimumReleaseAge\s*=\s*(\d+)/m);
-if (!ageMatch) {
-	console.error("bunfig.toml sets no [install] minimumReleaseAge");
+function fail(message) {
+	console.error(`Release-age check failed: ${message}`);
 	process.exit(1);
 }
-const minimumAgeMs = Number(ageMatch[1]) * 1000;
+
+const root = new URL("..", import.meta.url);
+
+// The age is the [install] section's minimumReleaseAge, in seconds.
+let section = "";
+let ageSeconds;
+for (const line of readFileSync(new URL("bunfig.toml", root), "utf8").split("\n")) {
+	const header = line.match(/^\s*\[([^\]]+)\]/);
+	if (header) {
+		section = header[1].trim();
+		continue;
+	}
+	const age = line.match(/^\s*minimumReleaseAge\s*=\s*(\d+)/);
+	if (age && section === "install") {
+		ageSeconds = Number(age[1]);
+	}
+}
+if (!ageSeconds) {
+	fail("bunfig.toml sets no [install] minimumReleaseAge");
+}
+const minimumAgeMs = ageSeconds * 1000;
 
 // bun.lock is JSON with trailing commas.
 const lockText = readFileSync(new URL("bun.lock", root), "utf8").replace(/,(\s*[}\]])/g, "$1");
-const lock = JSON.parse(lockText);
+const entries = Object.values(JSON.parse(lockText).packages ?? {});
+if (entries.length === 0) {
+	fail("bun.lock lists no packages");
+}
 
 const versions = new Map();
-for (const entry of Object.values(lock.packages ?? {})) {
-	const spec = entry[0];
+for (const entry of entries) {
+	const spec = Array.isArray(entry) ? entry[0] : undefined;
+	if (typeof spec !== "string") {
+		fail(`bun.lock has an entry it can't read: ${JSON.stringify(entry).slice(0, 80)}`);
+	}
+	// The repository's own workspace packages are the only entries without a registry version.
+	if (spec.includes("@workspace:")) {
+		continue;
+	}
 	const at = spec.lastIndexOf("@");
 	const name = spec.slice(0, at);
 	const version = spec.slice(at + 1);
-	// Workspace, file, link and git entries carry no registry version.
-	if (at <= 0 || !/^\d+\.\d+\.\d+/.test(version)) {
-		continue;
+	if (at <= 0 || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
+		fail(`bun.lock has a spec that is neither a registry version nor a workspace: ${spec}`);
 	}
 	const seen = versions.get(name) ?? new Set();
 	seen.add(version);
@@ -70,5 +96,5 @@ if (problems.length > 0) {
 	process.exit(1);
 }
 console.log(
-	`Release-age check: all ${count} locked versions are at least ${ageMatch[1]} seconds old.`,
+	`Release-age check: all ${count} locked versions are at least ${ageSeconds} seconds old.`,
 );

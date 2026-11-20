@@ -9,7 +9,6 @@
 	"scripts": {
 		"build": "bun run --filter '*' build",
 		"check": "bun run format:check && bun run typecheck && bun run lint",
-		"check:release-age": "bun scripts/check-release-age.mjs",
 		"format": "oxfmt --write .",
 		"format:check": "oxfmt --check .",
 		"format:diff": "oxfmt --write . && git --no-pager diff",
