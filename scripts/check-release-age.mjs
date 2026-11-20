@@ -4,43 +4,37 @@
 // registry version in bun.lock against npm's publish time, and fails on a version
 // that is too new or has no publish time, as pnpm's strict release-age policy did.
 import { readFileSync } from "node:fs";
+// Bun's own TOML parser, so the age is the value bun install enforces.
+import bunfig from "../bunfig.toml";
 
 function fail(message) {
 	console.error(`Release-age check failed: ${message}`);
 	process.exit(1);
 }
 
-const root = new URL("..", import.meta.url);
-
-// The age is the [install] section's minimumReleaseAge, in seconds.
-let section = "";
-let ageSeconds;
-for (const line of readFileSync(new URL("bunfig.toml", root), "utf8").split("\n")) {
-	const header = line.match(/^\s*\[([^\]]+)\]/);
-	if (header) {
-		section = header[1].trim();
-		continue;
-	}
-	const age = line.match(/^\s*minimumReleaseAge\s*=(.*)$/);
-	if (age && section === "install") {
-		const value = age[1].replace(/#.*/, "").trim();
-		if (!/^\d+$/.test(value)) {
-			fail(`bunfig.toml's minimumReleaseAge is not a plain number of seconds: ${value}`);
-		}
-		ageSeconds = Number(value);
-	}
-}
-if (!ageSeconds) {
-	fail("bunfig.toml sets no [install] minimumReleaseAge");
+const ageSeconds = bunfig.install?.minimumReleaseAge;
+if (!Number.isInteger(ageSeconds) || ageSeconds <= 0) {
+	fail(
+		`bunfig.toml's [install] minimumReleaseAge is not a positive number of seconds: ${ageSeconds}`,
+	);
 }
 const minimumAgeMs = ageSeconds * 1000;
 
 // bun.lock is JSON with trailing commas.
-const lockText = readFileSync(new URL("bun.lock", root), "utf8").replace(/,(\s*[}\]])/g, "$1");
-const entries = Object.values(JSON.parse(lockText).packages ?? {});
+const lockText = readFileSync(new URL("../bun.lock", import.meta.url), "utf8").replace(
+	/,(\s*[}\]])/g,
+	"$1",
+);
+const lock = JSON.parse(lockText);
+const entries = Object.values(lock.packages ?? {});
 if (entries.length === 0) {
 	fail("bun.lock lists no packages");
 }
+
+// The repository's own workspace packages are the only entries without a registry version.
+const workspaceSpecs = new Set(
+	Object.entries(lock.workspaces ?? {}).map(([path, { name }]) => `${name}@workspace:${path}`),
+);
 
 const versions = new Map();
 for (const entry of entries) {
@@ -48,8 +42,7 @@ for (const entry of entries) {
 	if (typeof spec !== "string") {
 		fail(`bun.lock has an entry it can't read: ${JSON.stringify(entry).slice(0, 80)}`);
 	}
-	// The repository's own workspace packages are the only entries without a registry version.
-	if (spec.includes("@workspace:")) {
+	if (workspaceSpecs.has(spec)) {
 		continue;
 	}
 	const at = spec.lastIndexOf("@");
