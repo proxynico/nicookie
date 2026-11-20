@@ -21,9 +21,13 @@ for (const line of readFileSync(new URL("bunfig.toml", root), "utf8").split("\n"
 		section = header[1].trim();
 		continue;
 	}
-	const age = line.match(/^\s*minimumReleaseAge\s*=\s*(\d+)/);
+	const age = line.match(/^\s*minimumReleaseAge\s*=(.*)$/);
 	if (age && section === "install") {
-		ageSeconds = Number(age[1]);
+		const value = age[1].replace(/#.*/, "").trim();
+		if (!/^\d+$/.test(value)) {
+			fail(`bunfig.toml's minimumReleaseAge is not a plain number of seconds: ${value}`);
+		}
+		ageSeconds = Number(value);
 	}
 }
 if (!ageSeconds) {
