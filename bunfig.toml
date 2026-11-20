@@ -1,0 +1,5 @@
+# nicookie reads browser cookies, so installs wait seven days before taking a newly
+# published package version. package.json pins esbuild (overrides) and lets only
+# esbuild run install scripts (trustedDependencies).
+[install]
+minimumReleaseAge = 604800 # seconds

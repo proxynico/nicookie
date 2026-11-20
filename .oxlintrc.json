@@ -26,5 +26,5 @@
 		"unicorn/no-array-sort": "off",
 		"unicorn/no-null": "off"
 	},
-	"ignorePatterns": ["coverage/", "dist/", "node_modules/", "pnpm-lock.yaml"]
+	"ignorePatterns": ["coverage/", "dist/", "node_modules/"]
 }
