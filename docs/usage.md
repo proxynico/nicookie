@@ -168,11 +168,11 @@ The extension in [`apps/extension`](../apps/extension) exports cookies from its 
 
 ### Build and load in Chrome
 
-Start with a checkout of this repository and the Node.js and pnpm versions listed under [Development](../README.md#development). From the repository root, run:
+Start with a checkout of this repository and the Node.js and Bun versions listed under [Development](../README.md#development). From the repository root, run:
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm --filter sweet-cookie-extension build
+bun install --frozen-lockfile
+bun run --filter sweet-cookie-extension build
 ```
 
 The build compiles the TypeScript and copies the static files into one unpacked extension directory:
