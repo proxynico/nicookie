@@ -22,12 +22,15 @@ export function readSafari(query: CookieQuery): CookieResult {
 		return { cookies: [], warnings: [`Could not read Safari's cookies: ${reason}`] };
 	}
 	const now = Date.now() / 1000;
-	const cookies = stored.filter(
-		(cookie) =>
-			query.hostKeys.has(cookie.hostOnly ? cookie.domain : `.${cookie.domain}`) &&
-			(query.names === null || query.names.has(cookie.name)) &&
-			(cookie.expires === undefined || cookie.expires > now),
-	);
+	const cookies = stored
+		.filter(
+			(cookie) =>
+				query.hostKeys.has(cookie.hostOnly ? cookie.domain : `.${cookie.domain}`) &&
+				(query.names === null || query.names.has(cookie.name)) &&
+				(cookie.expires === undefined || cookie.expires > now),
+		)
+		// Longest path first, the order a browser sends them in.
+		.toSorted((a, b) => b.path.length - a.path.length);
 	return { cookies, warnings: [] };
 }
 

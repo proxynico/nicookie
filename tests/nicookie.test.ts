@@ -253,7 +253,10 @@ test("reads the cookies each browser would send to a site", async () => {
 			{ domain: ".X.com", name: "old", value: "expired", expires: PAST },
 			{ domain: ".other.com", name: "auth_token", value: "other-site" },
 		],
-		[{ domain: "api.x.com", name: "api_only", value: "safari-api", path: "/v2", flags: 4 }],
+		[
+			{ domain: "api.x.com", name: "api_only", value: "safari-api", path: "/v2", flags: 4 },
+			{ domain: "api.x.com", name: "auth_token", value: "safari-api-auth", path: "/v2/deep" },
+		],
 	]);
 
 	// Everything for x.com, in browser order, longest path first within a profile.
@@ -364,10 +367,13 @@ test("reads the cookies each browser would send to a site", async () => {
 		"chrome/Profile 1 auth_token=work-auth @x.com",
 	]);
 	const safariApi = await getCookies({ url: "https://api.x.com/", browsers: ["safari"] });
+	// Safari's file holds these shortest path first; they come back longest path first.
 	expect(safariApi.cookies.map((cookie) => [cookie.name, cookie.path, cookie.httpOnly])).toEqual([
-		["auth_token", "/", true],
+		["auth_token", "/v2/deep", false],
 		["api_only", "/v2", true],
+		["auth_token", "/", true],
 	]);
+	expect(toCookieHeader(safariApi.cookies)).toBe("auth_token=safari-api-auth; api_only=safari-api");
 
 	// Narrowing by name, extra site, browser and profile.
 	const named = await getCookies({ ...X, names: ["ct0", "missing"] });
@@ -412,6 +418,17 @@ test("says what it could not read and still returns the rest", async () => {
 		`Helium has no data at ${browserRoot("helium")}.`,
 		expect.stringMatching(/^Could not read Safari's cookies: ENOENT.*Cookies\.binarycookies/),
 	]);
+
+	// A browser folder that cannot be listed stops that browser only.
+	mkdirSync(path.dirname(browserRoot("helium")), { recursive: true });
+	writeFileSync(browserRoot("helium"), "a file where the folder should be");
+	const unlistable = await getCookies({ ...X, browsers: ["helium", "safari"] });
+	expect(unlistable.cookies).toEqual([]);
+	expect(unlistable.warnings).toEqual([
+		expect.stringMatching(/^Could not list Helium's profiles: ENOTDIR/),
+		expect.stringMatching(/^Could not read Safari's cookies: ENOENT/),
+	]);
+	rmSync(browserRoot("helium"));
 
 	// A browser folder with no profile in it, and a profile name nothing matches.
 	mkdirSync(browserRoot("helium"), { recursive: true });

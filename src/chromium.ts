@@ -39,7 +39,15 @@ export async function readChromium(
 	if (!existsSync(root)) {
 		return { cookies: [], warnings: [`${target.label} has no data at ${root}.`] };
 	}
-	const profiles = findProfiles(root, options.profile);
+	let profiles: string[];
+	try {
+		profiles = findProfiles(root, options.profile);
+	} catch (error) {
+		return {
+			cookies: [],
+			warnings: [`Could not list ${target.label}'s profiles: ${message(error)}`],
+		};
+	}
 	if (profiles.length === 0) {
 		const wanted = options.profile === undefined ? "" : ` named "${options.profile}"`;
 		return { cookies: [], warnings: [`${target.label} has no profile${wanted} with cookies.`] };
