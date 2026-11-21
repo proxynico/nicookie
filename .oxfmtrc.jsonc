@@ -1,5 +1,4 @@
 {
-	"tabWidth": 2,
 	"useTabs": true,
-	"ignorePatterns": ["coverage/**", "node_modules/**", "packages/core/dist/**"],
+	"ignorePatterns": ["coverage/**", "node_modules/**"],
 }

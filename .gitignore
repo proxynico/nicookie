@@ -1,11 +1,7 @@
-node_modules
-dist
+node_modules/
+coverage/
 .DS_Store
-.cache
-.tmp
-coverage
-.tsbuildinfo
-
-# Keep library build output tracked for git deps (bird CI, etc).
-!packages/core/dist/
-!packages/core/dist/**
+.env
+.env*.local
+*.pem
+*.key

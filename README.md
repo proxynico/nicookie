@@ -1,140 +1,87 @@
-# Nicookie — Browser cookie extraction
+# nicookie
 
-[![CI](https://img.shields.io/github/actions/workflow/status/steipete/sweet-cookie/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/steipete/sweet-cookie/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@steipete/sweet-cookie?style=flat-square)](https://www.npmjs.com/package/@steipete/sweet-cookie)
-[![Node](https://img.shields.io/node/v/@steipete/sweet-cookie?style=flat-square)](https://nodejs.org/)
-[![License](https://img.shields.io/github/license/steipete/sweet-cookie?style=flat-square)](packages/core/LICENSE)
-
-Nicookie is Nico's fork of Sweet Cookie. The local/user-facing command is
-`nicookie`; the core package and `sweet-cookie` bin remain compatible with the
-upstream project.
-
-Sweet Cookie is a TypeScript library and CLI for reading cookies from inline payloads or local Chrome, Edge, Firefox, and Safari profiles. It is for local Node.js and Bun tools that need HTTP headers or browser-compatible cookie objects without native Node addons.
+nicookie reads the cookies that Chrome, Helium and Safari hold for a site. It runs on macOS under [Bun](https://bun.sh), as a command and as a TypeScript library with no dependencies. Local tools use it to act with a session you already signed in to.
 
 ```console
-$ npx @steipete/sweet-cookie example.com --inline-json \
-  '[{"name":"session","value":"demo","domain":"example.com","path":"/"}]' --format header
-Cookie: session=demo
+$ nicookie x.com --browser safari --name ct0 --format header
+Cookie: ct0=4f1c…
 ```
 
-## Install
+## Use the command
 
-Run the CLI without installing it:
+From a checkout, run `bun src/cli.ts`, or run `bun link` once to put `nicookie` on your `PATH`.
 
 ```bash
-npx @steipete/sweet-cookie --help
+nicookie x.com                                   # every browser, every profile, as JSON
+nicookie x.com --browser chrome --profile Work   # one browser, one profile
+nicookie x.com --origin twitter.com --name auth_token,ct0 --format header
 ```
 
-Or add the library to a project:
+| Option              | Meaning                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `--browser <name>`  | `chrome`, `helium` or `safari`. Repeat it or separate names with commas. The default is all three.                             |
+| `--profile <name>`  | One Chrome or Helium profile, by folder (`Profile 1`) or by the name the browser shows (`Work`). The default is every profile. |
+| `--name <name>`     | Only the cookies with this name. Repeat it or separate names with commas.                                                      |
+| `--origin <url>`    | Another site to include, such as a sign-in domain.                                                                             |
+| `--format <format>` | `json`, the default, or `header`.                                                                                              |
+| `--timeout-ms <ms>` | How long to wait for the macOS Keychain. The default is 3000.                                                                  |
+
+The command prints cookies to stdout and warnings to stderr. It exits 1 when it finds no cookie, so a script cannot take an empty result for a session.
+
+## Use the library
 
 ```bash
-npm install @steipete/sweet-cookie
+bun add github:proxynico/nicookie
 ```
 
-Node.js 22 or newer is required. The library also supports Bun through `bun:sqlite`.
-
-## Quick start
-
-Inline cookies are deterministic and work on every supported platform. Sweet Cookie filters them to the requested URL and returns before reading local browser databases.
-
 ```ts
-import { getCookies, toCookieHeader } from "@steipete/sweet-cookie";
-
-const { cookies } = await getCookies({
-	url: "https://example.com/",
-	inlineCookiesJson: '[{"name":"session","value":"demo","domain":"example.com"}]',
-});
-
-console.log(toCookieHeader(cookies)); // session=demo
-```
-
-For a local browser profile, omit the inline payload and choose one or more backends:
-
-```ts
-import { getCookies } from "@steipete/sweet-cookie";
+import { getCookies, toCookieHeader } from "nicookie";
 
 const { cookies, warnings } = await getCookies({
-	url: "https://example.com/",
-	names: ["session", "csrf"],
-	browsers: ["chrome", "firefox"],
+	url: "https://x.com/",
+	origins: ["https://twitter.com/"],
+	names: ["auth_token", "ct0"],
+	browsers: ["helium", "safari"],
 });
 
 for (const warning of warnings) console.warn(warning);
+const header = toCookieHeader(cookies); // "auth_token=…; ct0=…"
 ```
 
-## Sources and browser support
+`getCookies` returns the cookies in the order of `browsers`. Each cookie names its `source`: the browser and, for Chrome and Helium, the profile. A browser or profile that cannot be read adds a line to `warnings`, and the other browsers still return their cookies. A warning never holds a cookie value. `getCookies` throws a `TypeError` only when `url` or an origin is not a URL.
 
-Sweet Cookie checks inline JSON, base64, or file inputs first. The first inline source that yields cookies wins; otherwise, local browser backends run in order and either merge results or return the first successful result. If an inline source contains cookies whose isolation cannot be preserved and no later inline source yields cookies, extraction returns an empty result rather than falling back to local browser stores.
+`toCookieHeader` keeps the first cookie of each name. Within one profile the cookie with the longest path comes first, as it does in a browser.
 
-| Source            | macOS | Windows | Linux |
-| ----------------- | ----- | ------- | ----- |
-| Inline payload    | ✓     | ✓       | ✓     |
-| Chrome / Chromium | ✓     | ✓       | ✓     |
-| Edge              | ✓     | ✓       | ✓     |
-| Firefox           | ✓     | ✓       | ✓     |
-| Safari            | ✓     | —       | —     |
+The option and cookie types are in [`src/index.ts`](src/index.ts) and [`src/cookie.ts`](src/cookie.ts).
 
-Local reads copy browser databases before querying them with `node:sqlite` or `bun:sqlite`. Platform decryption uses the macOS Keychain, Windows DPAPI, or Linux keyring tools with bounded helper timeouts. Failures that do not invalidate the whole result are returned in `warnings`, without raw cookie values.
+## What it reads
 
-See the [usage guide](docs/usage.md) for source ordering, profile selection, environment variables, and platform details.
+| Browser | Cookie store                                                                       | Needs                                           |
+| ------- | ---------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Chrome  | `~/Library/Application Support/Google/Chrome/<profile>/Cookies`                    | The `Chrome Safe Storage` Keychain entry        |
+| Helium  | `~/Library/Application Support/net.imput.helium/<profile>/Cookies`                 | The `Helium Storage Key` Keychain entry         |
+| Safari  | `~/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies` | Full Disk Access for the app that runs nicookie |
 
-## Profiles
+- **Keychain.** The first Chrome or Helium read makes macOS ask whether `security` may use the entry. Choose **Always Allow**. Until someone answers, the read ends after `timeoutMs` with a warning.
+- **A running browser.** nicookie reads a copy of the database and its write-ahead log, so the browser can stay open.
+- **Matching.** A cookie is returned when the browser would send it to the host: the host's own cookies, and the cookies its parent domains share with subdomains. Expired cookies are left out. Paths and the `Secure` flag are not checked against the URL.
 
-Profile selectors accept a display name, profile directory, or cookie database path. Arrays read several selected profiles; `ALL_PROFILES` discovers every local profile supported by that backend.
+## What it leaves out
 
-```ts
-import { ALL_PROFILES, getCookies } from "@steipete/sweet-cookie";
+- Partitioned cookies. Such a cookie is valid only inside one embedding site, which a replay cannot reproduce.
+- Chrome and Helium cookie databases older than version 24, which Chrome 130 introduced. A value in a newer database carries a hash of its host, and nicookie checks that hash.
+- A value it cannot decrypt, or whose host hash does not match. The profile's warning counts them.
+- Windows, Linux, Node.js and every other browser.
 
-const { cookies } = await getCookies({
-	url: "https://example.com/",
-	browsers: ["chrome"],
-	chromeProfile: ALL_PROFILES,
-});
-```
-
-Chrome and Edge use their default profile when no selector is provided. Firefox prefers `default-release`; Safari has a cookie-file override rather than a profile selector.
-
-On Linux, the Chrome backend searches native and Flatpak Google Chrome roots by default. Set `chromiumBrowser` to target native or container roots for Chromium or Brave. Firefox searches its native, Snap, and Flatpak profile roots.
-
-The fork CLI also supports `nicookie example.com --all-profiles --browser chrome,firefox`.
-This discovers all Chrome, Edge, and Firefox profiles; Safari has no profile selector.
-On macOS, `--chromium-browser helium` selects Helium using Chromium Safe Storage.
-
-## Cookie scope and isolation
-
-Returned cookies preserve `hostOnly`: host-only cookies match exactly one hostname, while domain cookies may match subdomains. Scope is also part of deduplication, so host-only and domain cookies with the same name, normalized domain, and path remain distinct.
-
-Both scoped records can therefore appear in a library result. `toCookieHeader()` retains both by default; pass `{ dedupeByName: true }`, as the CLI does, when the target requires one value per cookie name.
-
-Sweet Cookie excludes Chromium partitioned cookies and Firefox partitioned or container-scoped cookies from local database reads because an ordinary replay cannot preserve their isolation context. Inline payloads carrying partition or container provenance are rejected with a warning for the same reason.
-
-## Extension exporter
-
-The Chrome Manifest V3 extension in [`apps/extension`](apps/extension) exports cookies from the current profile as JSON, base64, or a downloaded file. Use it when app-bound encryption, keychain prompts, remote execution, or another browser boundary prevents a local database read.
-
-Build the extension and load the generated `apps/extension/dist` directory in Chrome; the source directory is not loadable as-is. Follow the [build and loading instructions](docs/usage.md#build-and-load-in-chrome).
-
-The extension requests host access when you export, runs only after a user action, makes no network requests, and stores no cookie values. Its payload is accepted directly through `inlineCookiesJson`, `inlineCookiesBase64`, or `inlineCookiesFile`. See the [extension and payload specification](docs/spec.md).
-
-## Reference
-
-- [Usage and API guide](docs/usage.md)
-- [Cookie extraction and extension specification](docs/spec.md)
-- [Package API types](packages/core/src/types.ts)
-- [Full CLI help](docs/usage.md#cli-reference)
-
-## Development
-
-Repository development requires Node.js 22.13 or newer and Bun 1.4.4 or newer.
+## Develop
 
 ```bash
 bun install --frozen-lockfile
-bun run check
-bun run build
-bun run test
-bun run test:bun
+bun run check   # format, types, lint, tests with coverage
 ```
 
-## License
+The tests build a made-up home folder with real cookie databases and a stand-in `security` command. They never read your browsers or your Keychain.
 
-MIT. See [`packages/core/LICENSE`](packages/core/LICENSE).
+## Credit and license
+
+nicookie began as a fork of [Sweet Cookie](https://github.com/steipete/sweet-cookie) by Peter Steinberger and no longer follows it. MIT. See [LICENSE](LICENSE).
