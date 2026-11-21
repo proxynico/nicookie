@@ -32,4 +32,5 @@ nicookie reads the cookies Chrome, Helium and Safari hold for a site, on macOS u
 ## Publish
 
 - The default branch is `main`. Work lands by squash-merged pull request, and CI's one job, `ci`, runs `bun run check` on macOS.
+- Pull requests merge by sudxhome's [merging.md](https://github.com/sudx-io/sudxhome/blob/main/merging.md). nicookie's risk paths are `src/` and the `bin` and `exports` entries of `package.json`, because they decide which sign-in cookies a consumer can read.
 - Nothing deploys. A consumer takes the repository as a Git dependency, so a merge reaches it when it updates its lockfile.
