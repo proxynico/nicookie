@@ -3,13 +3,21 @@
 // version already in bun.lock installs without the check. This rechecks every
 // registry version in bun.lock against npm's publish time, and fails on a version
 // that is too new or has no publish time, as pnpm's strict release-age policy did.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 // Bun's own TOML parser, so the age is the value bun install enforces.
 import bunfig from "../bunfig.toml";
 
 function fail(message) {
 	console.error(`Release-age check failed: ${message}`);
 	process.exit(1);
+}
+
+// The publish times come from registry.npmjs.org, so installs must too.
+if (bunfig.install?.registry || bunfig.install?.scopes) {
+	fail("bunfig.toml points installs at another registry");
+}
+if (existsSync(new URL("../.npmrc", import.meta.url))) {
+	fail("an .npmrc could point installs at another registry");
 }
 
 const ageSeconds = bunfig.install?.minimumReleaseAge;
@@ -50,6 +58,10 @@ for (const entry of entries) {
 	const version = spec.slice(at + 1);
 	if (at <= 0 || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
 		fail(`bun.lock has a spec that is neither a registry version nor a workspace: ${spec}`);
+	}
+	// An empty source means the default registry; anything else downloads from elsewhere.
+	if (entry[1] !== "") {
+		fail(`bun.lock fetches ${spec} from ${JSON.stringify(entry[1])}, not the default registry`);
 	}
 	const seen = versions.get(name) ?? new Set();
 	seen.add(version);
