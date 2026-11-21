@@ -2,6 +2,10 @@
 
 ## 0.4.5 - Unreleased
 
+### Changed
+
+- Develop and test the repository with Bun instead of pnpm, keeping the seven-day release-age guard, the esbuild pin, and the esbuild-only install-script allowlist.
+
 ## 0.4.4 - 2026-09-24
 
 **Highlights:** Reliable Chromium cookie reads on early Node 22 and 24 releases without changing runtime requirements.

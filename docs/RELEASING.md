@@ -33,15 +33,15 @@ echo "$ver"
 
 This repo keeps `packages/core/dist/` tracked for git-based consumption.
 
-- [ ] `pnpm -s build`
+- [ ] `bun run --silent build`
 - [ ] Ensure `packages/core/dist/` updated (no uncommitted build output)
 
 ## 4) Gates (no warnings)
 
-- [ ] `pnpm -s lint`
-- [ ] `pnpm -s typecheck`
-- [ ] `pnpm -s test`
-- [ ] `pnpm -s test:bun`
+- [ ] `bun run --silent lint`
+- [ ] `bun run --silent typecheck`
+- [ ] `bun run --silent test`
+- [ ] `bun run --silent test:bun`
 
 ## 5) Package sanity (before publish)
 
