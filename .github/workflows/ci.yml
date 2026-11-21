@@ -10,72 +10,19 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push replaces a pull request's run. Each merge to main keeps its own result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  sqlite-compatibility:
-    name: SQLite / Node ${{ matrix.node }}
-    runs-on: ubuntu-latest
-    needs: check
+  ci:
+    # macOS, because nicookie reads macOS stores and Bun uses the system SQLite there.
+    runs-on: macos-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [22.14.0, 22.18.0, 24.3.0, 24.4.0]
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: ${{ matrix.node }}
-      - run: bun install --frozen-lockfile
-      - run: bunx vitest run packages/core/tests/chromeSqliteShared.integration.test.ts packages/core/tests/util.test.ts --coverage=false
-
-  check:
-    name: check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - uses: oven-sh/setup-bun@v2.2.0
-
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: 22.13.0
-
       - name: Recheck every locked version's release age
         run: bun scripts/check-release-age.mjs
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun audit --audit-level=high
-
-  test:
-    name: ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    needs: check
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - uses: oven-sh/setup-bun@v2.2.0
-
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: 22.13.0
-
-      - run: bun install --frozen-lockfile
-      - run: bun run test
-      - run: bun run test:bun
-      - run: bun run build
-      - name: Exercise the built CLI
-        run: >-
-          node packages/core/dist/cli.js example.com
-          --browser chrome
-          --inline-json
-          '[{"name":"proof","value":"synthetic","domain":"example.com","path":"/"}]'
-          --format header

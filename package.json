@@ -1,43 +1,27 @@
 {
 	"name": "nicookie",
+	"version": "1.0.0",
 	"private": true,
-	"workspaces": [
-		"packages/*",
-		"apps/*"
-	],
+	"description": "Read your Chrome, Helium and Safari cookies on macOS, for local tools.",
+	"license": "MIT",
+	"bin": {
+		"nicookie": "src/cli.ts"
+	},
 	"type": "module",
+	"exports": "./src/index.ts",
 	"scripts": {
-		"build": "bun run --filter '*' build",
-		"check": "bun run format:check && bun run typecheck && bun run lint",
-		"format": "oxfmt --write .",
-		"format:check": "oxfmt --check .",
-		"format:diff": "oxfmt --write . && git --no-pager diff",
-		"lint": "oxlint --type-aware --tsconfig tsconfig.lint.json --config .oxlintrc.json .",
-		"lint:fix": "oxlint --type-aware --tsconfig tsconfig.lint.json --config .oxlintrc.json --fix . && bun run format",
-		"audit": "bun audit",
-		"test": "vitest run --coverage",
-		"test:bun": "bun test packages/core/tests-bun",
-		"test:watch": "vitest",
-		"typecheck": "bun run --filter '*' typecheck"
+		"check": "bun run fmt:check && bun run typecheck && bun run lint && bun run test",
+		"fmt": "oxfmt --write .",
+		"fmt:check": "oxfmt --check .",
+		"lint": "oxlint --type-aware --deny-warnings .",
+		"test": "bun test --bail --coverage",
+		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@types/node": "^26.6.5",
-		"@vitest/coverage-v8": "^5.0.5",
+		"@types/bun": "^1.4.4",
 		"oxfmt": "^0.73.0",
 		"oxlint": "^1.88.0",
 		"oxlint-tsgolint": "^7.0.2004",
-		"typescript": "^7.0.2",
-		"vite": "^8.3.4",
-		"vitest": "^5.0.5"
-	},
-	"overrides": {
-		"esbuild": "0.28.2"
-	},
-	"engines": {
-		"node": ">=22.13.0"
-	},
-	"packageManager": "bun@1.4.4",
-	"trustedDependencies": [
-		"esbuild"
-	]
+		"typescript": "^7.0.2"
+	}
 }
